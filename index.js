@@ -22,22 +22,23 @@ app.use(cors(corsOptions))
 
 app.post('/auth', async (req, res) => {
     const { telegramId, username } = req.body;
-    const Wallet=createNewAccount();
+    const Wallet = await createNewAccount();
 
-    if (!connectToDb) {
+    const db = getDb();
+    if (!db) {
         return res.status(500).json({ message: 'Database connection error' });
     }
 
-    const usersCollection = connectToDb.collection('users');
+    const usersCollection = db.collection('users');
 
     try {
         const existingUser = await usersCollection.findOne({ telegramId });
-        console.log('existingUser')
+        console.log('existingUser:', existingUser);
 
         if (!existingUser) {
-            const newUser = { telegramId, username,Wallet };
+            const newUser = { telegramId, username, Wallet };
             await usersCollection.insertOne(newUser);
-            console.log(newUser)
+            console.log('New User:', newUser);
             return res.json({ message: 'Ваш ID был записан в базе данных.' });
         } else {
             return res.json({ message: 'Вы уже записаны в базе данных.' });
@@ -180,10 +181,11 @@ async function getBalance(address) {
 async function createNewAccount() {
     try {
         const newAccount = await tronWeb.createAccount();
-
-        console.log(newAccount);
+        console.log('New Account:', newAccount);
+        return newAccount; // Убедитесь, что возвращаете новый аккаунт
     } catch (error) {
         console.error('Error creating account:', error);
+        throw error; // Пробрасывайте ошибку, если не удалось создать аккаунт
     }
 }
 
