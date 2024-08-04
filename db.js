@@ -2,7 +2,7 @@ const { MongoClient } = require('mongodb');
 let dbConnection;
 require("dotenv").config();
 const DATABASE = process.env.DATABASE;
-console.log(DATABASE);
+
 
 const connectToDb = (cb) => {
    
