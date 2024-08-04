@@ -5,12 +5,15 @@ const port = process.env.PORT || 3000;
 const axios = require('axios');
 const { connectToDb, getDb } = require('./db');
 const TronWeb = require('tronweb');
+const TelegramBot = require('node-telegram-bot-api');
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const tronWeb = new TronWeb({
     fullHost: 'https://api.trongrid.io'
 });
 app.use(bodyParser.json());
 const cors=require("cors");
+const path = require("path");
 const corsOptions ={
     origin:'*',
     credentials:true,
@@ -53,11 +56,11 @@ app.post('/auth', async (req, res) => {
 
 app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
     try {
-        processUpdate(req.body); 
-        res.sendStatus(200); 
+        processUpdate(req.body);
+        res.sendStatus(200);
     } catch (error) {
         console.error('Error processing update:', error);
-        res.sendStatus(500); 
+        res.sendStatus(500);
     }
 });
 
@@ -201,6 +204,59 @@ async function createNewAccount() {
         throw error; // Пробрасывайте ошибку, если не удалось создать аккаунт
     }
 }
-console.log(UserTG);
 
+app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
+    try {
+        processUpdate(req.body);
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('Error processing update:', error);
+        res.sendStatus(500);
+    }
+});
+const sendWelcomeMessage = (chatId) => {
+    const photoUrl = path.join(__dirname, 'logo.png');
+    const message = `
+    <b>Welcome to</b> <b><u>USDTStaking App</u></b>
+    <b>Stack-To-Earn</b>
 
+    Welcome, <a href="https://t.me/usdtstaking_news">USDTStaking App</a>! 🤝
+
+    🚀 <b>Discover the revolutionary Stack-To-Earn app built on Telegram!</b>
+
+    Experience limitless opportunities for Stake USDT. Our infrastructure, powered by TRON blockchain, ensures optimized transactions and reduced transfer fees.
+
+    Be among the pioneers in earning with Tonix!
+
+    Complete missions, invite friends, rent additional mining power to earn even more.
+
+    Don't miss the opportunity to increase your income and strive for financial independence with us! 💰🚀
+
+    <b>Tap Start App 👇</b>
+    `;
+
+    const options = {
+        parse_mode: 'HTML',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: '⚡ Start App ⚡', web_app: { url: 'https://66afb02aa7f4c7c3d41e2066--luxury-narwhal-b92ac9.netlify.app/' } },
+                ],
+                [
+                    { text: '🎁 Join Community! 🎁', url: 'https://t.me/usdtstaking_group/1' }
+                ]
+            ]
+        }
+    };
+
+    bot.sendPhoto(chatId, photoUrl, { caption: message, ...options })
+        .catch(error => {
+            console.error('Error sending photo:', error);
+        });
+};
+
+// Handle incoming messages
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    sendWelcomeMessage(chatId);
+});
