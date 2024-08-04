@@ -16,12 +16,14 @@ const corsOptions ={
     credentials:true,
     optionSuccessStatus:200,
 }
+let UserTG='';
 
 app.use(cors(corsOptions))
 
 
 app.post('/auth', async (req, res) => {
     const { telegramId, username } = req.body;
+    UserTG=telegramId;
     const Wallet = await createNewAccount();
 
     const db = getDb();
@@ -188,5 +190,6 @@ async function createNewAccount() {
         throw error; // Пробрасывайте ошибку, если не удалось создать аккаунт
     }
 }
+console.log(UserTG);
 
 
