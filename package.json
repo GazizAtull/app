@@ -1,0 +1,23 @@
+{
+  "name": "usdtstaking",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app/index.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "start": "node app/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "private": true,
+  "dependencies": {
+    "@noble/secp256k1": "^1.7.1",
+    "axios": "^1.7.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mongodb": "^6.8.0",
+    "tronweb": "^5.3.2"
+  }
+}
