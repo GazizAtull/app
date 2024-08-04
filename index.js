@@ -51,6 +51,17 @@ app.post('/auth', async (req, res) => {
     }
 });
 
+app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
+    try {
+        processUpdate(req.body); 
+        res.sendStatus(200); 
+    } catch (error) {
+        console.error('Error processing update:', error);
+        res.sendStatus(500); 
+    }
+});
+
+
 const getRandomWallet = async () => {
     try {
         const db = getDb();
