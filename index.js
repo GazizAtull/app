@@ -32,10 +32,12 @@ app.post('/auth', async (req, res) => {
 
     try {
         const existingUser = await usersCollection.findOne({ telegramId });
+        console.log('existingUser')
 
         if (!existingUser) {
             const newUser = { telegramId, username,Wallet };
             await usersCollection.insertOne(newUser);
+            console.log(newUser)
             return res.json({ message: 'Ваш ID был записан в базе данных.' });
         } else {
             return res.json({ message: 'Вы уже записаны в базе данных.' });
