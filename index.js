@@ -134,7 +134,7 @@ connectToDb((err) => {
 
 app.get('/api/info', async (req, res) => {
     const telegramId = req.headers['x-telegram-id'];
-    console.log('is telegram id'telegramId)
+    console.log('is telegram id',telegramId)
 
     if (!telegramId) {
         return res.status(400).json({ message: 'Необходимо передать telegramId.' });
@@ -160,7 +160,7 @@ app.get('/api/info', async (req, res) => {
         const formattedUsdtInfo = usdtInfo.$numberInt || usdtInfo;
         const formattedBalanceInfo = balanceInfo.$numberInt || balanceInfo;
         const formattedCanDedInfo = canDedInfo.$numberInt || canDedInfo;
-        console.log('is formattedUsdtInfo 'formattedUsdtInfo)
+        console.log('is formattedUsdtInfo ',formattedUsdtInfo)
 
         res.json({
             usdtInfo: formattedUsdtInfo,
