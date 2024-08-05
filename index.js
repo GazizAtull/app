@@ -133,7 +133,8 @@ connectToDb((err) => {
 // Изначальные значения на сервере
 
 app.get('/api/info', async (req, res) => {
-    const { telegramId } = req.query; 
+    const telegramId = req.headers['x-telegram-id'];
+    console.log(telegramId)
 
     if (!telegramId) {
         return res.status(400).json({ message: 'Необходимо передать telegramId.' });
@@ -155,18 +156,16 @@ app.get('/api/info', async (req, res) => {
 
         const { usdtInfo, balanceInfo, canDedInfo } = user;
 
-        // Преобразуем данные в числовой формат, учитывая возможные типы данных из MongoDB
-        const formattedUsdtInfo = usdtInfo?.$numberInt ?? usdtInfo?.$numberDouble ?? 0;
-        const formattedBalanceInfo = balanceInfo?.$numberInt ?? balanceInfo?.$numberDouble ?? 0;
-        const formattedCanDedInfo = canDedInfo?.$numberInt ?? canDedInfo?.$numberDouble ?? 0;
-        console.log(formattedCanDedInfo);
-        console.log(formattedBalanceInfo);
-        console.log(telegramId)
+        // Преобразуем данные в числовой формат
+        const formattedUsdtInfo = usdtInfo.$numberInt || usdtInfo;
+        const formattedBalanceInfo = balanceInfo.$numberInt || balanceInfo;
+        const formattedCanDedInfo = canDedInfo.$numberInt || canDedInfo;
+        console.log(formattedUsdtInfo)
 
         res.json({
-            usdtInfo: Number(formattedUsdtInfo),
-            balanceInfo: Number(formattedBalanceInfo),
-            canDedInfo: Number(formattedCanDedInfo)
+            usdtInfo: formattedUsdtInfo,
+            balanceInfo: formattedBalanceInfo,
+            canDedInfo: formattedCanDedInfo
         });
     } catch (error) {
         console.error('Ошибка при получении данных пользователя:', error);
