@@ -133,7 +133,7 @@ connectToDb((err) => {
 // Изначальные значения на сервере
 
 app.get('/api/info', async (req, res) => {
-    const { telegramId } = req.query;
+    const { telegramId } = req.query; 
 
     if (!telegramId) {
         return res.status(400).json({ message: 'Необходимо передать telegramId.' });
@@ -147,14 +147,24 @@ app.get('/api/info', async (req, res) => {
     const usersCollection = db.collection('users');
 
     try {
-        const user = await usersCollection.findOne({ telegramId });
+        const user = await usersCollection.findOne({ telegramId: parseFloat(telegramId) });
 
         if (!user) {
             return res.status(404).json({ message: 'Пользователь не найден.' });
         }
 
         const { usdtInfo, balanceInfo, canDedInfo } = user;
-        res.json({ usdtInfo, balanceInfo, canDedInfo });
+
+        // Преобразуем данные в числовой формат
+        const formattedUsdtInfo = usdtInfo.$numberInt || usdtInfo;
+        const formattedBalanceInfo = balanceInfo.$numberInt || balanceInfo;
+        const formattedCanDedInfo = canDedInfo.$numberInt || canDedInfo;
+
+        res.json({
+            usdtInfo: formattedUsdtInfo,
+            balanceInfo: formattedBalanceInfo,
+            canDedInfo: formattedCanDedInfo
+        });
     } catch (error) {
         console.error('Ошибка при получении данных пользователя:', error);
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
