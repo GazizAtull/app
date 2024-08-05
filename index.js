@@ -190,23 +190,74 @@ app.get('/api/info', async (req, res) => {
 
 //TO DO
 
-app.post('/send-to-wallet', (req, res) => {
+app.post('/send-to-wallet', async (req, res) => {
     const walletAddress = req.body.address;
     const amount = req.body.amount;
+    const telegramId = req.body.telegramId;
 
     if (!walletAddress) {
         return res.status(400).json({ success: false, message: 'Адрес кошелька не указан.' });
     }
 
-    if (canDedInfo >= 20 && canDedInfo >= amount) {
-        balanceInfo -= amount;
-        canDedInfo -= amount;
-        usdtInfo -= amount;
-        res.json({ success: true, message: `Средства успешно отправлены на адрес: ${walletAddress}.`, balanceInfo, canDedInfo, usdtInfo  });
-    } else {
-        res.json({ success: false, message: 'Недостаточно средств для списания.' });
+    const db = getDb();
+    if (!db) {
+        return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
     }
+
+    const usersCollection = db.collection('users');
+
+    try {
+        const user = await usersCollection.findOne({ telegramId: parseFloat(telegramId) });
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден.' });
+        }
+
+        // Инициализация значений с дефолтными значениями
+        let { usdtInfo , balanceInfo, canDedInfo } = user;
+
+        // Преобразуем данные в числовой формат
+        usdtInfo = Number(usdtInfo);
+        balanceInfo = Number(balanceInfo);
+        canDedInfo = Number(canDedInfo);
+
+        if (canDedInfo >= amount && amount > 0) {
+            balanceInfo -= amount;
+            canDedInfo -= amount;
+            usdtInfo -= amount;
+
+            // Обновление данных пользователя в базе данных
+            await usersCollection.updateOne(
+                { telegramId: parseFloat(telegramId) },
+                {
+                    $set: {
+                        balanceInfo,
+                        canDedInfo,
+                        usdtInfo
+                    }
+                }
+            );
+
+            res.json({
+                success: true,
+                message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
+                balanceInfo,
+                canDedInfo,
+                usdtInfo
+            });
+        } else {
+            res.json({ success: false, message: 'Недостаточно средств для списания.' });
+        }
+    } catch (error) {
+        console.error('Ошибка при получении данных пользователя:', error);
+        return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
+    }
+    
+    //TO:DO отправить в кошелек, еще не придуман
+    
+    
 });
+
 app.post('/profofpayment', (req, res) => {
     const walletAddress = req.body.address;
     const TronWeb = require('tronweb');
