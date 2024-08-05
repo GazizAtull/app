@@ -155,22 +155,24 @@ app.get('/api/info', async (req, res) => {
 
         const { usdtInfo, balanceInfo, canDedInfo } = user;
 
-        // Преобразуем данные в числовой формат
-        const formattedUsdtInfo = usdtInfo.$numberInt || usdtInfo;
-        const formattedBalanceInfo = balanceInfo.$numberInt || balanceInfo;
-        const formattedCanDedInfo = canDedInfo.$numberInt || canDedInfo;
+        // Преобразуем данные в числовой формат, учитывая возможные типы данных из MongoDB
+        const formattedUsdtInfo = usdtInfo?.$numberInt ?? usdtInfo?.$numberDouble ?? 0;
+        const formattedBalanceInfo = balanceInfo?.$numberInt ?? balanceInfo?.$numberDouble ?? 0;
+        const formattedCanDedInfo = canDedInfo?.$numberInt ?? canDedInfo?.$numberDouble ?? 0;
+        console.log(formattedCanDedInfo);
+        console.log(formattedBalanceInfo);
+        console.log(telegramId)
 
         res.json({
-            usdtInfo: formattedUsdtInfo,
-            balanceInfo: formattedBalanceInfo,
-            canDedInfo: formattedCanDedInfo
+            usdtInfo: Number(formattedUsdtInfo),
+            balanceInfo: Number(formattedBalanceInfo),
+            canDedInfo: Number(formattedCanDedInfo)
         });
     } catch (error) {
         console.error('Ошибка при получении данных пользователя:', error);
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
 });
-
 
 // app.post('/api/update', async (req, res) => {
 //     const { amount } = req.body;
