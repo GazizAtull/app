@@ -28,6 +28,9 @@ app.post('/auth', async (req, res) => {
     const { telegramId, username } = req.body;
     UserTG=telegramId;
     const Wallet = await createNewAccount();
+    let usdtInfo = 0;
+    let balanceInfo = 0;
+    let canDedInfo = 0;
 
     const db = getDb();
     if (!db) {
@@ -41,7 +44,7 @@ app.post('/auth', async (req, res) => {
         console.log('existingUser:', existingUser);
 
         if (!existingUser) {
-            const newUser = { telegramId, username, Wallet };
+            const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo };
             await usersCollection.insertOne(newUser);
             console.log('New User:', newUser);
             return res.json({ message: 'Ваш ID был записан в базе данных.' });
@@ -66,22 +69,37 @@ app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
 
 
 const getRandomWallet = async () => {
+    let db;
     try {
-        const db = getDb();
-        const collection = db.collection('Wallets');
+        db = getDb();
+        console.log("Database object:", db);
+    } catch (error) {
+        console.error('Error getting database:', error.message);
+        return null;
+    }
 
-        const result = await collection.aggregate([{ $sample: { size: 1 } }]).toArray();
+    const usersCollection = db.collection('users');
+    try {
+        const result = await usersCollection.aggregate([{ $sample: { size: 1 } }]).toArray();
         if (result.length === 0) {
+            console.log('No users found');
             return null;
         } else {
             const wallet = result[0];
-            return wallet.address.base58;
+            // Проверяем наличие поля 'address' и 'base58'
+            if (wallet && wallet.Wallet && wallet.Wallet.address && wallet.Wallet.address.base58) {
+                return wallet.Wallet.address.base58;
+            } else {
+                console.log('Wallet structure is missing expected fields');
+                return null;
+            }
         }
     } catch (err) {
         console.error('Error fetching random wallet:', err);
         return null;
     }
 };
+
 
 // Маршрут для получения случайного кошелька
 app.get('/api/random-wallet', async (req, res) => {
@@ -94,6 +112,7 @@ app.get('/api/random-wallet', async (req, res) => {
     }
 });
 
+
 // Подключение к базе данных и запуск сервера
 connectToDb((err) => {
     if (err) {
@@ -101,21 +120,47 @@ connectToDb((err) => {
         return;
     }
     app.listen(port, () => {
-        console.log(`Server running on http://localhost:${port}`);
+
+        console.log(`Server running on :${port}`);
+
     });
 });
+
 
 
 //getBalance('TT3GQycpjchooQ7CuV3zivJ4bF2Zi2jEJ8').then(balance => console.log('Balance:', balance/1000000));
 
 // Изначальные значения на сервере
-let usdtInfo = 0;
-let balanceInfo = 0;
-let canDedInfo = 0;
 
-app.get('/api/info', (req, res) => {
-    res.json({ usdtInfo, balanceInfo, canDedInfo });
+app.get('/api/info', async (req, res) => {
+    const { telegramId } = req.query;
+
+    if (!telegramId) {
+        return res.status(400).json({ message: 'Необходимо передать telegramId.' });
+    }
+
+    const db = getDb();
+    if (!db) {
+        return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
+    }
+
+    const usersCollection = db.collection('users');
+
+    try {
+        const user = await usersCollection.findOne({ telegramId });
+
+        if (!user) {
+            return res.status(404).json({ message: 'Пользователь не найден.' });
+        }
+
+        const { usdtInfo, balanceInfo, canDedInfo } = user;
+        res.json({ usdtInfo, balanceInfo, canDedInfo });
+    } catch (error) {
+        console.error('Ошибка при получении данных пользователя:', error);
+        return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
+    }
 });
+
 
 // app.post('/api/update', async (req, res) => {
 //     const { amount } = req.body;
