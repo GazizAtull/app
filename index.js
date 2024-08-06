@@ -100,7 +100,7 @@ const getWallet = async (telegramId) => {
 };
 
 
-app.get('/api/wallet', async (req, res) => {
+app.post('/api/wallet', async (req, res) => {
     const { telegramId } = req.body;
     const base58 = await getWallet(telegramId);
 
