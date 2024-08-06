@@ -277,6 +277,8 @@ app.post('/proofofpayment', async (req, res) => {
     console.log('TRON API URL:', tronWebInstance.fullHost);
     console.log('Address to Hex:', tronWeb.address.toHex(walletAddress));
     console.log(process.env.TRON_API)
+    console.log('TronWeb instance properties:', Object.keys(tronWebInstance));
+    console.log('TRON API URL:', tronWebInstance._fullHost || 'Property not available');
 
     try {
         // Получение текущего времени и временных рамок +/- 5 минут
