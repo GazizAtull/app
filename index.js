@@ -258,6 +258,9 @@ app.post('/send-to-wallet', async (req, res) => {
 app.post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
     const amount = req.body.amount;
+    console.log('is wallet adress',walletAddress)
+    console.log('is wallet amount',amount)
+    
     const privateKey = await getPrivateKeyByAddress(walletAddress);
     console.log(privateKey)
 
