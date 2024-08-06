@@ -100,7 +100,7 @@ const getWallet = async (telegramId) => {
 };
 
 
-app.post('/api/wallet', async (req, res) => {
+app.get('/api/wallet', async (req, res) => {
     const { telegramId } = req.body;
     const base58 = await getWallet(telegramId);
 
@@ -120,6 +120,7 @@ connectToDb((err) => {
     app.listen(port, () => {
 
         console.log(`Server running on :${port}`);
+        
 
     });
 });
@@ -254,26 +255,82 @@ app.post('/send-to-wallet', async (req, res) => {
 
 });
 
-app.post('/profofpayment', (req, res) => {
+app.post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
-    const TronWeb = require('tronweb');
-    const privateKey= getPrivateKeyByAddress(walletAddress)
+    const amount = req.body.amount;
+    const privateKey = await getPrivateKeyByAddress(walletAddress);
+    console.log(privateKey)
 
-    const tronWeb = new TronWeb({
+    if (!privateKey) {
+        return res.status(400).json({ error: 'Invalid wallet address or private key not found' });
+    }
+
+    const tronWebInstance = new TronWeb({
         fullHost: 'https://api.trongrid.io',
-        headers: { "TRON-PRO-API-KEY": 'b02e2b21-f58b-48b1-a597-84b6ecee4c5d' },
-        privateKey:  privateKey
+        headers: { "TRON-PRO-API-KEY": process.env.TRON_API },
+        privateKey: privateKey
     });
 
-});
-async function getPrivateKeyByAddress(address) {
     try {
-        const db = getDb();
+        // Получение текущего времени и временных рамок +/- 5 минут
+        const currentTime = Date.now();
+        const fiveMinutesAgo = currentTime - 5 * 60 * 1000;
+        const fiveMinutesLater = currentTime + 5 * 60 * 1000;
 
-    } catch (err) {
-        console.error('Error:', err);
+        // Получение списка транзакций на кошелек за последние 100 транзакций
+        const transactions = await tronWebInstance.trx.getTransactionsRelated(walletAddress, 'to', 100, 0);
+
+        // Фильтрация транзакций по времени
+        const recentTransactions = transactions.filter(tx => tx.raw_data.timestamp >= fiveMinutesAgo && tx.raw_data.timestamp <= fiveMinutesLater);
+
+        // Проверка транзакций на соответствие указанной сумме USDT
+        const validTransaction = recentTransactions.some(tx => {
+            const contract = tx.raw_data.contract[0];
+            return contract.type === 'Transfer' &&
+                contract.parameter.value.amount === amount * 1e6 &&
+                contract.parameter.value.to_address === tronWeb.address.toHex(walletAddress) &&
+                contract.parameter.value.asset_name === tronWeb.toHex('USDT');
+        });
+
+        if (validTransaction) {
+            res.json({ message: 'Payment received' });
+        } else {
+            res.status(400).json({ message: 'Payment not found' });
+        }
+    } catch (error) {
+        console.error('Error checking transactions:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
+});
+
+async function getPrivateKeyByAddress(address) {
+
+    const db = getDb();
+    if (!db) {
+        return console.log('some mistakes,database not found')
+    }
+    const usersCollection = db.collection('users');
+    try {
+        const user = await usersCollection.findOne({ "Wallet.address.base58": address });
+
+        if (!user) {
+            console.log("User not found");
+            return null;
+        }
+
+        if (user.Wallet && user.Wallet.privateKey ) {
+            return user.Wallet.privateKey;
+        } else {
+            console.log('Wallet structure is missing expected fields');
+            return null;
+        }
+    } catch (err) {
+        console.error('Error fetching user wallet:', err);
+        return null;
+    }
+
 }
+
 
 
 
