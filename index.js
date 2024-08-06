@@ -68,7 +68,7 @@ app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
 });
 
 
-const getRandomWallet = async () => {
+const getWallet = async (telegramId) => {
     let db;
     try {
         db = getDb();
@@ -77,43 +77,41 @@ const getRandomWallet = async () => {
         console.error('Error getting database:', error.message);
         return null;
     }
-
     const usersCollection = db.collection('users');
+
     try {
-        const result = await usersCollection.aggregate([{ $sample: { size: 1 } }]).toArray();
-        if (result.length === 0) {
-            console.log('No users found');
+        const user = await usersCollection.findOne({ telegramId: parseFloat(telegramId) });
+
+        if (!user) {
+            console.log("User not found");
             return null;
+        }
+
+        if (user.Wallet && user.Wallet.address && user.Wallet.address.base58) {
+            return user.Wallet.address.base58;
         } else {
-            const wallet = result[0];
-            // Проверяем наличие поля 'address' и 'base58'
-            if (wallet && wallet.Wallet && wallet.Wallet.address && wallet.Wallet.address.base58) {
-                return wallet.Wallet.address.base58;
-            } else {
-                console.log('Wallet structure is missing expected fields');
-                return null;
-            }
+            console.log('Wallet structure is missing expected fields');
+            return null;
         }
     } catch (err) {
-        console.error('Error fetching random wallet:', err);
+        console.error('Error fetching user wallet:', err);
         return null;
     }
 };
 
 
-// Маршрут для получения случайного кошелька
-app.get('/api/random-wallet', async (req, res) => {
-    const base58 = await getRandomWallet();
-    console.log("is " + base58);
+app.get('/api/wallet', async (req, res) => {
+    const { telegramId } = req.body;
+    const base58 = await getWallet(telegramId);
+
     if (base58) {
         res.json({ base58 });
     } else {
-        res.status(404).json({ error: 'No wallets found' });
+        res.status(404).json({ error: 'Wallet not found' });
     }
 });
 
 
-// Подключение к базе данных и запуск сервера
 connectToDb((err) => {
     if (err) {
         console.error('Failed to connect to database');
@@ -130,11 +128,9 @@ connectToDb((err) => {
 
 //getBalance('TT3GQycpjchooQ7CuV3zivJ4bF2Zi2jEJ8').then(balance => console.log('Balance:', balance/1000000));
 
-// Изначальные значения на сервере
 
 app.get('/api/info', async (req, res) => {
     const telegramId = req.headers['x-telegram-id'];
-    console.log('is telegram id',telegramId)
 
     if (!telegramId) {
         return res.status(400).json({ message: 'Необходимо передать telegramId.' });
@@ -160,7 +156,6 @@ app.get('/api/info', async (req, res) => {
         const formattedUsdtInfo = usdtInfo.$numberInt || usdtInfo;
         const formattedBalanceInfo = balanceInfo.$numberInt || balanceInfo;
         const formattedCanDedInfo = canDedInfo.$numberInt || canDedInfo;
-        console.log('is formattedUsdtInfo ',formattedUsdtInfo)
 
         res.json({
             usdtInfo: formattedUsdtInfo,
@@ -172,6 +167,7 @@ app.get('/api/info', async (req, res) => {
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
 });
+
 
 // app.post('/api/update', async (req, res) => {
 //     const { amount } = req.body;
@@ -220,8 +216,8 @@ app.post('/send-to-wallet', async (req, res) => {
         usdtInfo = Number(usdtInfo);
         balanceInfo = Number(balanceInfo);
         canDedInfo = Number(canDedInfo);
-
-        if (canDedInfo >= amount && amount > 0) {
+//commint to github amount >=10!!!
+        if (canDedInfo >= amount && amount >= 10) {
             balanceInfo -= amount;
             canDedInfo -= amount;
             usdtInfo -= amount;
@@ -252,10 +248,10 @@ app.post('/send-to-wallet', async (req, res) => {
         console.error('Ошибка при получении данных пользователя:', error);
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
-    
+
     //TO:DO отправить в кошелек, еще не придуман
-    
-    
+
+
 });
 
 app.post('/profofpayment', (req, res) => {
@@ -312,6 +308,9 @@ async function createNewAccount() {
     }
 }
 
+
+//bot section=======================================
+
 app.post(`/bot${process.env.BOT_TOKEN}`, (req, res) => {
     try {
         processUpdate(req.body);
@@ -362,8 +361,9 @@ const sendWelcomeMessage = (chatId) => {
         });
 };
 
-// Handle incoming messages
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     sendWelcomeMessage(chatId);
 });
+
+// ===========================================================================
