@@ -271,7 +271,7 @@ app.post('/proofofpayment', async (req, res) => {
     const tronWebInstance = new TronWeb({
         fullHost: 'https://api.trongrid.io',
         headers: { "TRON-PRO-API-KEY": process.env.TRON_API },
-        privateKey: '11fd1aa2011e63e8ef0fd148c9b035f0433fe7db8773c020c944fdae19124680'
+        privateKey: privateKey
     });
 
     console.log('TRON API URL:', tronWebInstance.fullHost);
