@@ -314,7 +314,7 @@ async function getPrivateKeyByAddress(address) {
     }
     const usersCollection = db.collection('users');
     try {
-        const user = await usersCollection.findOne({ "Wallet.address.base58": address });
+        const user = await usersCollection.findOne({ "user.Wallet.address.base58": address });
          console.log('Query result:', user);
         if (!user) {
             console.log("User not found");
