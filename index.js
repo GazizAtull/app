@@ -307,7 +307,7 @@ app.post('/proofofpayment', async (req, res) => {
 });
 
 async function getPrivateKeyByAddress(address) {
-
+    console.log('Looking for address:', address);
     const db = getDb();
     if (!db) {
         return console.log('some mistakes,database not found')
@@ -315,7 +315,7 @@ async function getPrivateKeyByAddress(address) {
     const usersCollection = db.collection('users');
     try {
         const user = await usersCollection.findOne({ "Wallet.address.base58": address });
-
+         console.log('Query result:', user);
         if (!user) {
             console.log("User not found");
             return null;
