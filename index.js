@@ -274,6 +274,9 @@ app.post('/proofofpayment', async (req, res) => {
         privateKey: privateKey
     });
 
+    console.log('TRON API URL:', tronWebInstance.fullHost);
+    console.log('Address to Hex:', tronWeb.address.toHex(walletAddress));
+
     try {
         // Получение текущего времени и временных рамок +/- 5 минут
         const currentTime = Date.now();
