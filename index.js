@@ -7,6 +7,7 @@ const { connectToDb, getDb } = require('./db');
 const TronWeb = require('tronweb');
 const TelegramBot = require('node-telegram-bot-api');
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+const BigNumber = require('bignumber.js');
 
 const tronWeb = new TronWeb({
     fullHost: 'https://api.trongrid.io'
@@ -19,14 +20,14 @@ const corsOptions ={
     credentials:true,
     optionSuccessStatus:200,
 }
-let UserTG='';
+
 
 app.use(cors(corsOptions))
 
 
 app.post('/auth', async (req, res) => {
     const { telegramId, username } = req.body;
-    UserTG=telegramId;
+
     const Wallet = await createNewAccount();
     let usdtInfo = 0;
     let balanceInfo = 0;
@@ -120,7 +121,7 @@ connectToDb((err) => {
     app.listen(port, () => {
 
         console.log(`Server running on :${port}`);
-        
+
 
     });
 });
@@ -258,71 +259,181 @@ app.post('/send-to-wallet', async (req, res) => {
 app.post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
     const telegramId = req.body.telegramId;
-    const amount = req.body.amount;
-    console.log('is wallet adress',walletAddress)
-    console.log('is wallet amount',amount)
-    
-    const privateKey = await getPrivateKeyByAddress(telegramId);
-    console.log(privateKey)
-
-    if (!privateKey) {
-        return res.status(400).json({ error: 'Invalid wallet address or private key not found' });
-    }
-
-    const tronWebInstance = new TronWeb({
-        fullHost: 'https://api.trongrid.io',
-        headers: { "TRON-PRO-API-KEY": process.env.TRON_API },
-        privateKey: privateKey
-    });
-
-    console.log('TRON API URL:', tronWebInstance.fullHost);
-    console.log('Address to Hex:', tronWeb.address.toHex(walletAddress));
-    console.log(process.env.TRON_API)
-    console.log('TronWeb instance properties:', Object.keys(tronWebInstance));
-    console.log('TRON API URL:', tronWebInstance._fullHost || 'Property not available');
+    const expectedAmount = parseFloat(req.body.amount); // Преобразуем в число
 
     try {
-        // Получение текущего времени и временных рамок +/- 5 минут
-        const currentTime = Date.now();
-        const fiveMinutesAgo = currentTime - 5 * 60 * 1000;
-        const fiveMinutesLater = currentTime + 5 * 60 * 1000;
+        const privateKey = await getPrivateKeyByAddress(telegramId);
+        if (!privateKey) {
+            return res.status(400).json({ error: 'Invalid wallet address or private key not found' });
+        }
 
-        // Получение списка транзакций на кошелек за последние 100 транзакций
-        const transactions = await tronWebInstance.trx.getTransactionsRelated(walletAddress, 'to', 100, 0);
+        const transactions = await getTransactionsByAddress(walletAddress);
+        if (transactions) {
+            const parsedTransaction = parseTransaction(transactions);
 
-        // Фильтрация транзакций по времени
-        const recentTransactions = transactions.filter(tx => tx.raw_data.timestamp >= fiveMinutesAgo && tx.raw_data.timestamp <= fiveMinutesLater);
+            if (parsedTransaction && parseFloat(parsedTransaction.amount) === expectedAmount) {
+                const db = getDb();
+                if (!db) {
+                    return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
+                }
 
-        // Проверка транзакций на соответствие указанной сумме USDT
-        const validTransaction = recentTransactions.some(tx => {
-            const contract = tx.raw_data.contract[0];
-            return contract.type === 'Transfer' &&
-                contract.parameter.value.amount === amount * 1e6 &&
-                contract.parameter.value.to_address === tronWeb.address.toHex(walletAddress) &&
-                contract.parameter.value.asset_name === tronWeb.toHex('USDT');
-        });
+                const txIdCollection = db.collection('txId');
+                const usersCollection = db.collection('users');
 
-        if (validTransaction) {
-            res.json({ message: 'Payment received' });
+                try {
+                    const existingTxId = await txIdCollection.findOne({ TxID: parsedTransaction.txID });
+                    if (!existingTxId) {
+                        const newTxId = { TxID: parsedTransaction.txID };
+                        await txIdCollection.insertOne(newTxId);
+                        console.log('New txid:', newTxId);
+
+                        const user = await usersCollection.findOne({ telegramId: parseFloat(telegramId) });
+                        if (!user) {
+                            return res.status(404).json({ message: 'Пользователь не найден.' });
+                        }
+
+                        let { usdtInfo, balanceInfo, canDedInfo } = user;
+                        usdtInfo = Number(usdtInfo);
+                        balanceInfo = Number(balanceInfo);
+                        canDedInfo = Number(canDedInfo);
+
+                        if (expectedAmount >= 50) {
+                            balanceInfo += expectedAmount;
+                            canDedInfo += expectedAmount;
+                            usdtInfo += expectedAmount;
+
+                            await usersCollection.updateOne(
+                                { telegramId: parseFloat(telegramId) },
+                                {
+                                    $set: {
+                                        balanceInfo,
+                                        canDedInfo,
+                                        usdtInfo
+                                    }
+                                }
+                            );
+                            await sendPaymentConfirmation(telegramId, newTxId, expectedAmount)
+
+                            return res.json({
+                                success: true,
+                                message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
+                                balanceInfo,
+                                canDedInfo,
+                                usdtInfo
+                            });
+                        } else {
+                            return res.json({ success: false, message: 'Недостаточно средств для списания.' });
+                        }
+                    } else {
+                        return res.json({ message: 'Вы уже записаны в базе данных.' });
+                    }
+                } catch (error) {
+                    console.error('Ошибка при обработке данных пользователя:', error);
+                    return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
+                }
+            } else {
+                return res.status(400).json({ error: 'Payment amount does not match' });
+            }
         } else {
-            res.status(400).json({ message: 'Payment not found' });
+            return res.status(404).json({ error: 'No transactions found for the address' });
         }
     } catch (error) {
-        console.error('Error checking transactions:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Ошибка при обработке запроса:', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 });
 
+async function getTransactionsByAddress(base58Address) {
+    try {
+        const addressHex = tronWeb.address.toHex(base58Address);
+        const response = await axios.get(`https://api.trongrid.io/v1/accounts/${addressHex}/transactions`);
+        const transactions = response.data;
+        if (transactions && transactions.data && transactions.data.length > 0) {
+
+            return transactions.data[0];
+        } else {
+            console.log('Нет транзакций.');
+            return null;
+        }
+    } catch (error) {
+        console.error('Ошибка при получении транзакций:', error);
+        return null;
+    }
+}
+
+function parseTransaction(transaction) {
+    if (transaction.raw_data && transaction.raw_data.contract) {
+        transaction.raw_data.contract.forEach(contract => {
+            if (contract.parameter && contract.parameter.value) {
+                const contractData = contract.parameter.value;
+
+                if (contract.type === 'TriggerSmartContract') {
+                    const methodId = contractData.data.slice(0, 8);
+                    if (methodId === 'a9059cbb') {
+                        const fromAddress = tronWeb.address.fromHex(contractData.owner_address);
+                        const toAddressHex = '41' + contractData.data.slice(8, 72);
+                        const toAddress = tronWeb.address.fromHex(toAddressHex);
+                        const amountHex = contractData.data.slice(72, 136);
+
+
+                        const amount = new BigNumber(amountHex, 16).dividedBy(1e6);
+
+
+                        console.log(transaction.raw_data.contract)
+                        console.log(`amountHex: ${amountHex}`);
+                        console.log(`amountDecimal: ${amount.toString()}`);
+                        console.log(`Транзакция ID: ${transaction.txID}`);
+                        console.log(`От: ${fromAddress}`);
+                        console.log(`Кому: ${toAddress}`);
+                        console.log(`Сумма: ${amount.toFixed()} USDT`);
+                        return {
+                            txID: transaction.txID,
+                            fromAddress,
+                            toAddress,
+                            amount: amount.toFixed()
+                        };
+                    }
+                }
+            }
+        });
+    } else {
+        console.log('Данные транзакции не найдены.');
+    }
+}
+
+async function sendPaymentConfirmation(telegramId, txID, amount) {
+    const bot = new TelegramBot(process.env.BOT_TOKEN_ALERT);
+    const message = `
+🚀 New Staked amount Boost 🚀
+
+💰 Amount: ${amount} USDT
+👤 User:  ${telegramId}
+
+`;
+    const options = {
+        parse_mode: 'Markdown',
+        message_thread_id: 5,
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🚀 Start App 🚀', url: 'https://example.com/start-app' }],
+                [{ text: '🎁 Join Community! 🎁', url: 'https://example.com/join-community' }],
+                [{ text: 'TXID', url: `https://tronscan.org/#/transaction/${txID}` }],
+            ]
+        }
+    };
+    bot.sendMessage(-1002220861636, message, options);
+
+}
 async function getPrivateKeyByAddress(address) {
-    console.log('Looking for address:', address);
+
     const db = getDb();
     if (!db) {
         return console.log('some mistakes,database not found')
     }
     const usersCollection = db.collection('users');
     try {
-        const user = await usersCollection.findOne({  telegramId: parseFloat(address) });
-         console.log('Query result:', user);
+        const user = await usersCollection.findOne({telegramId: parseFloat(address)});
+
         if (!user) {
             console.log("User not found");
             return null;
