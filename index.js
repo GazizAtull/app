@@ -347,7 +347,7 @@ async function getTransactionsByAddress(base58Address) {
     try {
 
         console.log(base58Address);
-        const address=String(base58Address)
+        const address=base58Address.trim();
         console.log(address);
         const addressHex = tronWeb.address.toHex(address);
         const response = await axios.get(`https://api.trongrid.io/v1/accounts/${addressHex}/transactions`);
