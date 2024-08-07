@@ -346,10 +346,8 @@ app.post('/proofofpayment', async (req, res) => {
 async function getTransactionsByAddress(base58Address) {
     try {
 
-        console.log(base58Address);
-        const address=base58Address.trim();
-        console.log(address);
-        const addressHex = tronWeb.address.toHex(address);
+        const adress = base58Address.trim();
+        const addressHex = tronWeb.address.toHex(adress);
         const response = await axios.get(`https://api.trongrid.io/v1/accounts/${addressHex}/transactions`);
         const transactions = response.data;
         if (transactions && transactions.data && transactions.data.length > 0) {
@@ -538,5 +536,90 @@ bot.on('message', (msg) => {
     const chatId = msg.chat.id;
     sendWelcomeMessage(chatId);
 });
+bot.onText(/\/start (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const refCode = match[1];
+    const userId = msg.from.id;
+    const username = msg.from.username;
+
+    if (refCode.startsWith('referral_')) {
+        const referrerId = refCode.split('_')[1];
+        const db = getDb();
+
+        if (!db) {
+            return bot.sendMessage(chatId, 'Ошибка подключения к базе данных.');
+        }
+        const referalCollection = db.collection('referal');
+        const existingReferal = await referalCollection.findOne({ REF: refCode });
+
+        if (existingReferal) {
+            const friendExists = existingReferal.friends.some(friend => friend.id === userId);
+
+            if (!friendExists) {
+                await referalCollection.updateOne(
+                    { REF: refCode },
+                    { $push: { friends: { id: userId, username } } }
+                );
+                bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
+            } else {
+                bot.sendMessage(chatId, 'Вы уже в списке друзей по этой реферальной ссылке.');
+            }
+        } else {
+            bot.sendMessage(chatId, 'Реферальная ссылка не найдена.');
+        }
+    } else {
+        bot.sendMessage(chatId, 'Добро пожаловать!');
+    }
+});
+
 
 // ===========================================================================
+
+app.post('/create-ref', async (req, res) => {
+    const { telegramId, username } = req.body;
+    const ref = generateReferralLink(telegramId);
+    const db = getDb();
+
+    if (!db) {
+        return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
+    }
+    const referalCollection = db.collection('referal');
+    const existingReferal = await referalCollection.findOne({ REF: ref });
+
+    if (!existingReferal) {
+        const newReferal = { REF: ref, friends: [] };
+        await referalCollection.insertOne(newReferal);
+        console.log('New ref:', newReferal);
+        res.status(200).json({ message: 'Referral created', referralLink: ref });
+    } else {
+        res.status(200).json({ message: 'Referral already exists', referralLink: existingReferal.REF });
+    }
+});
+
+function generateReferralLink(telegramId) {
+    return `https://t.me/usdtstakingapp_bot?start=referral_${telegramId}`;
+}
+
+app.get('/check-ref', async (req, res) => {
+    const telegramId = req.headers['x-telegram-id'];
+    const ref = generateReferralLink(telegramId);
+    const db = getDb();
+
+    if (!db) {
+        return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
+    }
+    const referalCollection = db.collection('referal');
+    const existingReferal = await referalCollection.findOne({ REF: ref });
+
+    if (existingReferal) {
+        if (existingReferal.friends && existingReferal.friends.length > 0) {
+            res.status(200).json({ friends: existingReferal.friends });
+        } else {
+            res.status(200).json({ friends: [] });
+        }
+    } else {
+        res.status(404).json({ message: 'Реферальная ссылка не найдена.' });
+    }
+});
+
+
