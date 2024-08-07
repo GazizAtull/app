@@ -349,7 +349,6 @@ async function getTransactionsByAddress(base58Address) {
         const response = await axios.get(`https://api.trongrid.io/v1/accounts/${addressHex}/transactions`);
         const transactions = response.data;
         if (transactions && transactions.data && transactions.data.length > 0) {
-
             return transactions.data[0];
         } else {
             console.log('Нет транзакций.');
@@ -363,29 +362,20 @@ async function getTransactionsByAddress(base58Address) {
 
 function parseTransaction(transaction) {
     if (transaction.raw_data && transaction.raw_data.contract) {
-        transaction.raw_data.contract.forEach(contract => {
+        for (const contract of transaction.raw_data.contract) {
             if (contract.parameter && contract.parameter.value) {
                 const contractData = contract.parameter.value;
 
                 if (contract.type === 'TriggerSmartContract') {
                     const methodId = contractData.data.slice(0, 8);
-                    if (methodId === 'a9059cbb') {
+                    if (methodId === 'a9059cbb') { // Метод transfer(address,uint256)
                         const fromAddress = tronWeb.address.fromHex(contractData.owner_address);
                         const toAddressHex = '41' + contractData.data.slice(8, 72);
                         const toAddress = tronWeb.address.fromHex(toAddressHex);
-                        const amountHex = contractData.data.slice(72, 136);
+                        const amountHex = contractData.data.slice(72, 136); // Правильное извлечение суммы (64 символа)
 
-
+                        // Преобразуем в USDT (предполагается 6 десятичных знаков)
                         const amount = new BigNumber(amountHex, 16).dividedBy(1e6);
-
-
-                        console.log(transaction.raw_data.contract)
-                        console.log(`amountHex: ${amountHex}`);
-                        console.log(`amountDecimal: ${amount.toString()}`);
-                        console.log(`Транзакция ID: ${transaction.txID}`);
-                        console.log(`От: ${fromAddress}`);
-                        console.log(`Кому: ${toAddress}`);
-                        console.log(`Сумма: ${amount.toFixed()} USDT`);
                         return {
                             txID: transaction.txID,
                             fromAddress,
@@ -395,10 +385,11 @@ function parseTransaction(transaction) {
                     }
                 }
             }
-        });
+        }
     } else {
         console.log('Данные транзакции не найдены.');
     }
+    return null;
 }
 
 async function sendPaymentConfirmation(telegramId, txID, amount) {
