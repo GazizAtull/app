@@ -32,6 +32,7 @@ app.post('/auth', async (req, res) => {
     let usdtInfo = 0;
     let balanceInfo = 0;
     let canDedInfo = 0;
+    let isInvited=false;
 
     const db = getDb();
     if (!db) {
@@ -45,7 +46,7 @@ app.post('/auth', async (req, res) => {
         console.log('existingUser:', existingUser);
 
         if (!existingUser) {
-            const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo };
+            const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo,isInvited};
             await usersCollection.insertOne(newUser);
             console.log('New User:', newUser);
             return res.json({ message: 'Ваш ID был записан в базе данных.' });
@@ -539,23 +540,27 @@ bot.on('message', (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const refCode = match[1];
-    const ref=`https://t.me/usdtstakingapp_bot?start=${refCode}`
+    const ref = `https://t.me/usdtstakingapp_bot?start=${refCode}`;
     const userId = msg.from.id;
     const username = msg.from.username;
 
+    const db = getDb();
+
+    if (!db) {
+        return bot.sendMessage(chatId, 'Ошибка подключения к базе данных.');
+    }
+
+    const referalCollection = db.collection('referal');
+    const userCollection = db.collection('user');
+    
+
     if (refCode.startsWith('referral_')) {
-        const referrer = refCode.split('_')[1];
-        const referrerId=referrer.trim();
-        console.log("is",ref)
-        const db = getDb();
+        const referrerId = refCode.split('_')[1].trim();
 
-        if (!db) {
-            return bot.sendMessage(chatId, 'Ошибка подключения к базе данных.');
-        }
-        const referalCollection = db.collection('referal');
         const existingReferal = await referalCollection.findOne({ REF: ref });
+        const IsInvited = await userCollection.findOne({ userId, isInvited: false });
 
-        if (existingReferal) {
+        if (existingReferal && IsInvited) {
             const friendExists = existingReferal.friends.some(friend => friend.id === userId);
 
             if (!friendExists) {
@@ -563,12 +568,18 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
                     { REF: ref },
                     { $push: { friends: { id: userId, username } } }
                 );
+
+                await userCollection.updateOne(
+                    { userId },
+                    { $set: { isInvited: true, referrerId } }
+                );
+
                 bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
             } else {
                 bot.sendMessage(chatId, 'Вы уже в списке друзей по этой реферальной ссылке.');
             }
         } else {
-            bot.sendMessage(chatId, 'Реферальная ссылка не найдена.');
+            bot.sendMessage(chatId, 'Реферальная ссылка не найдена или вы уже были приглашены.');
         }
     } else {
         bot.sendMessage(chatId, 'Добро пожаловать!');
@@ -624,5 +635,3 @@ app.get('/check-ref', async (req, res) => {
         res.status(404).json({ message: 'Реферальная ссылка не найдена.' });
     }
 });
-
-
