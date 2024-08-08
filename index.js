@@ -539,7 +539,6 @@ bot.on('message', (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const refCode = match[1];
-    console.log(refCode);
     const userId = msg.from.id;
     const username = msg.from.username;
 
@@ -551,14 +550,14 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
             return bot.sendMessage(chatId, 'Ошибка подключения к базе данных.');
         }
         const referalCollection = db.collection('referal');
-        const existingReferal = await referalCollection.findOne({ REF: refCode });
+        const existingReferal = await referalCollection.findOne({ Id: referrerId });
 
         if (existingReferal) {
             const friendExists = existingReferal.friends.some(friend => friend.id === userId);
 
             if (!friendExists) {
                 await referalCollection.updateOne(
-                    { REF: refCode },
+                    { REF: referrerId },
                     { $push: { friends: { id: userId, username } } }
                 );
                 bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
@@ -585,10 +584,10 @@ app.post('/create-ref', async (req, res) => {
         return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
     }
     const referalCollection = db.collection('referal');
-    const existingReferal = await referalCollection.findOne({ REF: ref });
+    const existingReferal = await referalCollection.findOne({ REF: ref});
 
     if (!existingReferal) {
-        const newReferal = { REF: ref, friends: [] };
+        const newReferal = { REF: ref, friends: [],Id:telegramId  };
         await referalCollection.insertOne(newReferal);
         console.log('New ref:', newReferal);
         res.status(200).json({ message: 'Referral created', referralLink: ref });
