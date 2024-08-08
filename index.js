@@ -551,7 +551,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     }
 
     const referalCollection = db.collection('referal');
-    const userCollection = db.collection('user');
+    const userCollection = db.collection('users');
     const user = await userCollection.findOne({ userId });
 
     if (!user) {
@@ -561,9 +561,23 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
         let balanceInfo = 0;
         let canDedInfo = 0;
         let isInvited=false;
-        const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo,isInvited};
-        
-        await userCollection.insertOne({newUser});
+
+        try {
+            const existingUser = await userCollection.findOne({ telegramId });
+            console.log('existingUser:', existingUser);
+
+            if (!existingUser) {
+                const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo,isInvited};
+                await userCollection.insertOne(newUser);
+                console.log('New User:', newUser);
+                return console.log({ message: 'Ваш ID был записан в базе данных.' });
+            } else {
+                return console.log('Вы уже записаны в базе данных.');
+            }
+        } catch (error) {
+            console.error('Error handling user data:', error);
+
+        }
     }
 
 
@@ -584,7 +598,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
                 await userCollection.updateOne(
                     { userId },
-                    { $set: { isInvited: true, referrerId } }
+                    { $set: { isInvited: true } }
                 );
 
                 bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
