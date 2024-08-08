@@ -539,6 +539,7 @@ bot.on('message', (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const refCode = match[1];
+    console.log(refCode);
     const userId = msg.from.id;
     const username = msg.from.username;
 
