@@ -552,61 +552,61 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
     const referalCollection = db.collection('referal');
     const userCollection = db.collection('users');
-    const user = await userCollection.findOne({ userId });
+    const user = await userCollection.findOne({ telegramId: userId });
 
     if (!user) {
         const Wallet = await createNewAccount();
-        const telegramId=userId;
-        let usdtInfo = 0;
-        let balanceInfo = 0;
-        let canDedInfo = 0;
-        let isInvited=false;
+        const newUser = {
+            telegramId: userId,
+            username,
+            Wallet,
+            usdtInfo: 0,
+            balanceInfo: 0,
+            canDedInfo: 0,
+            isInvited: false
+        };
 
         try {
-            const existingUser = await userCollection.findOne({ telegramId });
-            console.log('existingUser:', existingUser);
-
-            if (!existingUser) {
-                const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo,isInvited};
-                await userCollection.insertOne(newUser);
-                console.log('New User:', newUser);
-                return console.log({ message: 'Ваш ID был записан в базе данных.' });
-            } else {
-                return console.log('Вы уже записаны в базе данных.');
-            }
+            await userCollection.insertOne(newUser);
+            console.log('New User:', newUser);
+            bot.sendMessage(chatId, 'Ваш ID был записан в базе данных.');
         } catch (error) {
             console.error('Error handling user data:', error);
-
+            return bot.sendMessage(chatId, 'Ошибка при создании нового пользователя.');
         }
+    } else {
+        bot.sendMessage(chatId, 'Вы уже записаны в базе данных.');
     }
-
 
     if (refCode.startsWith('referral_')) {
         const referrerId = refCode.split('_')[1].trim();
 
-        const existingReferal = await referalCollection.findOne({ REF: ref });
-        const IsInvited = await userCollection.findOne({ userId, isInvited: false });
+        if (!user.isInvited) {
+            const existingReferal = await referalCollection.findOne({ REF: ref });
 
-        if (existingReferal && IsInvited) {
-            const friendExists = existingReferal.friends.some(friend => friend.id === userId);
+            if (existingReferal) {
+                const friendExists = existingReferal.friends.some(friend => friend.id === userId);
 
-            if (!friendExists) {
-                await referalCollection.updateOne(
-                    { REF: ref },
-                    { $push: { friends: { id: userId, username } } }
-                );
+                if (!friendExists) {
+                    await referalCollection.updateOne(
+                        { REF: ref },
+                        { $push: { friends: { id: userId, username } } }
+                    );
 
-                await userCollection.updateOne(
-                    { userId },
-                    { $set: { isInvited: true } }
-                );
+                    await userCollection.updateOne(
+                        { telegramId: userId },
+                        { $set: { isInvited: true } }
+                    );
 
-                bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
+                    bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
+                } else {
+                    bot.sendMessage(chatId, 'Вы уже в списке друзей по этой реферальной ссылке.');
+                }
             } else {
-                bot.sendMessage(chatId, 'Вы уже в списке друзей по этой реферальной ссылке.');
+                bot.sendMessage(chatId, 'Реферальная ссылка не найдена.');
             }
         } else {
-            bot.sendMessage(chatId, 'Реферальная ссылка не найдена или вы уже были приглашены.');
+            bot.sendMessage(chatId, 'Вы уже были приглашены.');
         }
     } else {
         bot.sendMessage(chatId, 'Добро пожаловать!');
