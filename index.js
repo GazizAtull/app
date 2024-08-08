@@ -543,7 +543,8 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     const username = msg.from.username;
 
     if (refCode.startsWith('referral_')) {
-        const referrerId = refCode.split('_')[1].trim();
+        const referrer = refCode.split('_')[1];
+        const referrerId=referrer.trim();
         console.log("is",referrerId)
         const db = getDb();
 
