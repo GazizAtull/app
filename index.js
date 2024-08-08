@@ -546,7 +546,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     if (refCode.startsWith('referral_')) {
         const referrer = refCode.split('_')[1];
         const referrerId=referrer.trim();
-        console.log("is",referrerId)
+        console.log("is",ref)
         const db = getDb();
 
         if (!db) {
@@ -560,7 +560,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
             if (!friendExists) {
                 await referalCollection.updateOne(
-                    { REF: referrerId },
+                    { REF: ref },
                     { $push: { friends: { id: userId, username } } }
                 );
                 bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
