@@ -540,7 +540,6 @@ bot.on('message', (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const refCode = match[1];
-    const ref = `https://t.me/usdtstakingapp_bot?start=${refCode}`;
     const userId = msg.from.id;
     const username = msg.from.username;
 
@@ -552,7 +551,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
     const referalCollection = db.collection('referal');
     const userCollection = db.collection('users');
-    const user = await userCollection.findOne({ telegramId: userId });
+    let user = await userCollection.findOne({ telegramId: userId });
 
     if (!user) {
         const Wallet = await createNewAccount();
@@ -568,15 +567,22 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
         try {
             await userCollection.insertOne(newUser);
+            user = newUser;  // Обновляем переменную user после добавления в базу данных
             console.log('New User:', newUser);
             bot.sendMessage(chatId, 'Ваш ID был записан в базе данных.');
+
             if (refCode.startsWith('referral_')) {
                 const referrerId = refCode.split('_')[1].trim();
+                const ref = `https://t.me/usdtstakingapp_bot?start=${refCode}`;
 
                 if (!user.isInvited) {
                     const existingReferal = await referalCollection.findOne({ REF: ref });
 
                     if (existingReferal) {
+                        if (!existingReferal.friends) {
+                            existingReferal.friends = [];  // Инициализируем массив друзей, если он отсутствует
+                        }
+
                         const friendExists = existingReferal.friends.some(friend => friend.id === userId);
 
                         if (!friendExists) {
@@ -610,9 +616,8 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     } else {
         bot.sendMessage(chatId, 'Вы уже записаны в базе данных.');
     }
-    console.log(user.isInvited)
 
-    
+    console.log(user.isInvited);
 });
 
 
