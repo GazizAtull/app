@@ -577,9 +577,11 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
     } else {
         bot.sendMessage(chatId, 'Вы уже записаны в базе данных.');
     }
+    console.log(user.isInvited)
 
     if (refCode.startsWith('referral_')) {
         const referrerId = refCode.split('_')[1].trim();
+        console.log(user.isInvited)
 
         if (!user.isInvited) {
             const existingReferal = await referalCollection.findOne({ REF: ref });
