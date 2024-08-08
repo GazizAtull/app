@@ -539,6 +539,7 @@ bot.on('message', (msg) => {
 bot.onText(/\/start (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const refCode = match[1];
+    const ref=`https://t.me/usdtstakingapp_bot?start=${refCode}`
     const userId = msg.from.id;
     const username = msg.from.username;
 
@@ -552,7 +553,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
             return bot.sendMessage(chatId, 'Ошибка подключения к базе данных.');
         }
         const referalCollection = db.collection('referal');
-        const existingReferal = await referalCollection.findOne({ Id: referrerId });
+        const existingReferal = await referalCollection.findOne({ REF: ref });
 
         if (existingReferal) {
             const friendExists = existingReferal.friends.some(friend => friend.id === userId);
