@@ -552,7 +552,20 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
 
     const referalCollection = db.collection('referal');
     const userCollection = db.collection('user');
-    
+    const user = await userCollection.findOne({ userId });
+
+    if (!user) {
+        const Wallet = await createNewAccount();
+        const telegramId=userId;
+        let usdtInfo = 0;
+        let balanceInfo = 0;
+        let canDedInfo = 0;
+        let isInvited=false;
+        const newUser = { telegramId, username, Wallet,usdtInfo,balanceInfo,canDedInfo,isInvited};
+        
+        await userCollection.insertOne({newUser});
+    }
+
 
     if (refCode.startsWith('referral_')) {
         const referrerId = refCode.split('_')[1].trim();
