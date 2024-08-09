@@ -734,6 +734,7 @@ async function updateStakes() {
 cron.schedule('0 0 * * *', updateStakes);
 app.get('/stake-info/:telegramId', async (req, res) => {
     const telegramId = parseFloat(req.params.telegramId);
+    console.log(telegramId)
     try {
         const db = getDb();
         if (!db) {
