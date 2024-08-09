@@ -258,7 +258,7 @@ app.post('/send-to-wallet', async (req, res) => {
 
 });
 
-post('/proofofpayment', async (req, res) => {
+app.post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
     const telegramId = req.body.telegramId;
     const expectedAmount = parseFloat(req.body.amount); // Преобразуем в число
