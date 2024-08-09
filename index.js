@@ -8,6 +8,7 @@ const TronWeb = require('tronweb');
 const TelegramBot = require('node-telegram-bot-api');
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const BigNumber = require('bignumber.js');
+const cron = require('node-cron');
 
 const tronWeb = new TronWeb({
     fullHost: 'https://api.trongrid.io'
@@ -257,7 +258,7 @@ app.post('/send-to-wallet', async (req, res) => {
 
 });
 
-app.post('/proofofpayment', async (req, res) => {
+post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
     const telegramId = req.body.telegramId;
     const expectedAmount = parseFloat(req.body.amount); // Преобразуем в число
@@ -280,6 +281,7 @@ app.post('/proofofpayment', async (req, res) => {
 
                 const txIdCollection = db.collection('txId');
                 const usersCollection = db.collection('users');
+                const stakingCollection = db.collection('staking'); // Новая коллекция для стейкинга
 
                 try {
                     const existingTxId = await txIdCollection.findOne({ TxID: parsedTransaction.txID });
@@ -299,6 +301,7 @@ app.post('/proofofpayment', async (req, res) => {
                         canDedInfo = Number(canDedInfo);
 
                         if (expectedAmount >= 50) {
+                            // Обновляем баланс пользователя
                             balanceInfo += expectedAmount;
                             canDedInfo += expectedAmount;
                             usdtInfo += expectedAmount;
@@ -313,14 +316,28 @@ app.post('/proofofpayment', async (req, res) => {
                                     }
                                 }
                             );
-                            await sendPaymentConfirmation(telegramId, newTxId, expectedAmount)
+
+                            // Создаем новый стейк
+                            const newStake = {
+                                stake_id: new ObjectId(), // Генерация уникального ID для стейка
+                                telegramId: parseFloat(telegramId),
+                                initial_balance: expectedAmount,
+                                current_balance: expectedAmount,
+                                stake_start_date: new Date(),
+                                stake_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Добавляем 30 дней
+                                is_active: true
+                            };
+                            await stakingCollection.insertOne(newStake);
+
+                            await sendPaymentConfirmation(telegramId, newTxId, expectedAmount);
 
                             return res.json({
                                 success: true,
-                                message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
+                                message: `Средства успешно отправлены на адрес: ${walletAddress} и новый стейк создан.`,
                                 balanceInfo,
                                 canDedInfo,
-                                usdtInfo
+                                usdtInfo,
+                                stake: newStake // Возвращаем информацию о стейке
                             });
                         } else {
                             return res.json({ success: false, message: 'Недостаточно средств для списания.' });
@@ -343,6 +360,7 @@ app.post('/proofofpayment', async (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
+
 
 async function getTransactionsByAddress(base58Address) {
     try {
@@ -638,7 +656,7 @@ app.post('/create-ref', async (req, res) => {
         const newReferal = { REF: ref, friends: [],Id:telegramId  };
         await referalCollection.insertOne(newReferal);
         console.log('New ref:', newReferal);
-        res.status(200).json({ message: 'Referral created', referralLink: ref });
+        res.status(200).json({ message: 'Referral created', referralLink: ref,Id:telegramId });
     } else {
         res.status(200).json({ message: 'Referral already exists', referralLink: existingReferal.REF });
     }
@@ -667,5 +685,71 @@ app.get('/check-ref', async (req, res) => {
         }
     } else {
         res.status(404).json({ message: 'Реферальная ссылка не найдена.' });
+    }
+});
+async function updateStakes() {
+    try {
+        const db = getDb();
+        if (!db) {
+            console.error('Ошибка подключения к базе данных.');
+            return;
+        }
+
+        const stakingCollection = db.collection('staking');
+        const activeStakes = await stakingCollection.find({ is_active: true }).toArray();
+
+        const currentDate = new Date();
+
+        for (const stake of activeStakes) {
+            const { stake_id, current_balance, stake_start_date, stake_end_date, initial_balance } = stake;
+            const daysPassed = Math.floor((currentDate - new Date(stake_start_date)) / (24 * 60 * 60 * 1000));
+
+            // Проверяем, что стейк еще активен и не завершился
+            if (currentDate < new Date(stake_end_date)) {
+                // Начисляем проценты, допустим 1% в сутки
+                const interest = current_balance * 0.045;
+                const newBalance = current_balance + interest;
+
+                await stakingCollection.updateOne(
+                    { stake_id: stake_id },
+                    { $set: { current_balance: newBalance } }
+                );
+
+                console.log(`Проценты начислены для стейка ${stake_id}. Новый баланс: ${newBalance}`);
+            } else {
+                // Завершаем стейк и возвращаем пользователю начальный баланс
+                await stakingCollection.updateOne(
+                    { stake_id: stake_id },
+                    { $set: { is_active: false, current_balance: initial_balance } }
+                );
+
+                console.log(`Стейк ${stake_id} завершен. Баланс возвращен: ${initial_balance}`);
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка при обновлении стейков:', error);
+    }
+}
+
+cron.schedule('0 0 * * *', updateStakes);
+app.get('/stake-info/:telegramId', async (req, res) => {
+    const telegramId = parseFloat(req.params.telegramId);
+    try {
+        const db = getDb();
+        if (!db) {
+            return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
+        }
+
+        const stakingCollection = db.collection('staking');
+        const userStakes = await stakingCollection.find({ telegramId, is_active: true }).toArray();
+
+        if (userStakes.length === 0) {
+            return res.status(404).json({ message: 'Активных стейков не найдено.' });
+        }
+
+        res.json({ success: true, stakes: userStakes });
+    } catch (error) {
+        console.error('Ошибка при получении информации о стейке:', error);
+        res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
 });
