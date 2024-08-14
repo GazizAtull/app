@@ -701,29 +701,26 @@ async function updateStakes() {
         const currentDate = new Date();
 
         for (const stake of activeStakes) {
-            const { stake_id, current_balance, stake_start_date, stake_end_date, initial_balance } = stake;
-            const daysPassed = Math.floor((currentDate - new Date(stake_start_date)) / (24 * 60 * 60 * 1000));
+            const { stake_id, current_balance, stake_start_date, stake_end_date, initial_balance, accumulated_interest = 0 } = stake;
 
-            // Проверяем, что стейк еще активен и не завершился
             if (currentDate < new Date(stake_end_date)) {
-                // Начисляем проценты, допустим 1% в сутки
-                const interest = current_balance * 0.045;
-                const newBalance = current_balance + interest;
+                const dailyInterest = initial_balance * 0.045;
+                const newAccumulatedInterest = accumulated_interest + dailyInterest;
 
                 await stakingCollection.updateOne(
                     { stake_id: stake_id },
-                    { $set: { current_balance: newBalance } }
+                    { $set: { accumulated_interest: newAccumulatedInterest } }
                 );
 
-                console.log(`Проценты начислены для стейка ${stake_id}. Новый баланс: ${newBalance}`);
+                console.log(`Проценты начислены для стейка ${stake_id}. Новый накопленный процент: ${newAccumulatedInterest}`);
             } else {
-                // Завершаем стейк и возвращаем пользователю начальный баланс
+                // Завершаем стейк, возвращаем начальный баланс и сбрасываем накопленные проценты
                 await stakingCollection.updateOne(
                     { stake_id: stake_id },
-                    { $set: { is_active: false, current_balance: initial_balance } }
+                    { $set: { is_active: false, current_balance: initial_balance, accumulated_interest: 0 } }
                 );
 
-                console.log(`Стейк ${stake_id} завершен. Баланс возвращен: ${initial_balance}`);
+                console.log(`Стейк ${stake_id} завершен. Баланс возвращен: ${initial_balance}, накопленные проценты сброшены.`);
             }
         }
     } catch (error) {
@@ -736,6 +733,7 @@ app.get('/stake-info/:telegramId', async (req, res) => {
     const telegramId = parseFloat(req.params.telegramId);
     console.log(telegramId)
     try {
+
         const db = getDb();
         if (!db) {
             return res.status(500).json({ message: 'Ошибка подключения к базе данных.' });
@@ -752,5 +750,59 @@ app.get('/stake-info/:telegramId', async (req, res) => {
     } catch (error) {
         console.error('Ошибка при получении информации о стейке:', error);
         res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
+    }
+});
+
+app.post('/claim/:telegramId', async (req, res) => {
+    try {
+        const telegramId = req.params.telegramId;
+        let db;
+
+        try {
+            db = getDb();
+            console.log("Database object:", db);
+        } catch (error) {
+            console.error('Error getting database:', error.message);
+            return res.status(500).json({ success: false, message: 'Ошибка получения базы данных' });
+        }
+
+        const usersCollection = db.collection('users');
+        const stakeCollection = db.collection('staking');
+
+        try {
+            const userStakes = await stakeCollection.find({ telegramId, is_active: true }).toArray();
+
+            if (userStakes.length === 0) {
+                console.log("Active stakes not found for user");
+                return res.status(404).json({ success: false, message: 'Ставки не найдены' });
+            }
+
+            const updates = userStakes.map(async stake => {
+                const { stake_id, accumulated_interest } = stake;
+                const newAccumulatedInterest = accumulated_interest;
+
+                await usersCollection.updateOne(
+                    { telegramId: telegramId },
+                    { $set: { canDedInfo: newAccumulatedInterest } }
+                );
+
+                await stakeCollection.updateOne(
+                    { stake_id: stake_id },
+                    { $set: { accumulated_interest: 0 } }
+                );
+            });
+
+            await Promise.all(updates);
+
+            return res.status(200).json({ success: true, message: 'Данные успешно обновлены' });
+
+        } catch (error) {
+            console.error('Ошибка на сервере:', error);
+            return res.status(500).json({ success: false, message: 'Ошибка на сервере' });
+        }
+
+    } catch (error) {
+        console.error('Неизвестная ошибка:', error);
+        return res.status(500).json({ success: false, message: 'Неизвестная ошибка' });
     }
 });
