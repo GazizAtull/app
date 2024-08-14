@@ -756,6 +756,7 @@ app.get('/stake-info/:telegramId', async (req, res) => {
 app.post('/claim/:telegramId', async (req, res) => {
     try {
         const telegramId = req.params.telegramId;
+        console.log("tg id "telegramId);
         let db;
 
         try {
