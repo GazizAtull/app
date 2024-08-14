@@ -780,8 +780,9 @@ app.post('/claim/:telegramId', async (req, res) => {
 
             const updates = userStakes.map(async stake => {
                 const { stake_id, accumulated_interest } = stake;
+                console.log('is acc',accumulated_interest)
                 const newAccumulatedInterest = accumulated_interest;
-
+                console.log('is new acc',newAccumulatedInterest)
                 await usersCollection.updateOne(
                     { telegramId: telegramId },
                     { $set: { canDedInfo: newAccumulatedInterest } }
