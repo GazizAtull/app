@@ -318,7 +318,6 @@ app.post('/proofofpayment', async (req, res) => {
 
                             // Создаем новый стейк
                             const newStake = {
-                                stake_id: new ObjectId(), // Генерация уникального ID для стейка
                                 telegramId: parseFloat(telegramId),
                                 initial_balance: expectedAmount,
                                 current_balance: expectedAmount,
