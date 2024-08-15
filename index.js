@@ -328,7 +328,7 @@ app.post('/proofofpayment', async (req, res) => {
                             };
                             await stakingCollection.insertOne(newStake);
 
-                            await sendPaymentConfirmation(telegramId, newTxId, expectedAmount);
+                            await sendPaymentConfirmation(telegramId, parsedTransaction.txID, expectedAmount);
 
                             return res.json({
                                 success: true,
