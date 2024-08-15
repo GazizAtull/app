@@ -782,41 +782,48 @@ app.post('/claim/:telegramId', async (req, res) => {
             const claimData = [];
             const updates = userStakes.map(async stake => {
                 const { stake_id, accumulated_interest } = stake;
-                console.log('is acc',accumulated_interest)
-                const newAccumulatedInterest = accumulated_interest;
-                console.log('is new acc',newAccumulatedInterest)
-                const currentTime = new Date().toLocaleString('ru-RU', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                const claim = {
-                    telegramId: telegramId,
-                    amount: accumulated_interest,
-                    timestamp: currentTime
-                };
-                await claimsCollection.insertOne(claim);
+                console.log('Accumulated interest:', accumulated_interest);
 
+                if (accumulated_interest >= 5) {
+                    const currentTime = new Date().toLocaleString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
 
-                await usersCollection.updateOne(
-                    { telegramId: telegramId },
-                    {  $inc: { canDedInfo: newAccumulatedInterest} }
-                );
+                    const claim = {
+                        telegramId: telegramId,
+                        amount: accumulated_interest,
+                        timestamp: currentTime
+                    };
 
-                await stakeCollection.updateOne(
-                    { stake_id: stake_id },
-                    { $set: { accumulated_interest: 0 } }
-                );
-                claimData.push(claim);
+                    await claimsCollection.insertOne(claim);
+                    await usersCollection.updateOne(
+                        { telegramId: telegramId },
+                        { $inc: { canDedInfo: accumulated_interest } }
+                    );
+
+                    await stakeCollection.updateOne(
+                        { stake_id: stake_id },
+                        { $set: { accumulated_interest: 0 } }
+                    );
+
+                    claimData.push(claim);
+                } else {
+                    console.log(`Stake with ID ${stake_id} has less than 5, skipping.`);
+                    return;
+                }
             });
-
 
             await Promise.all(updates);
 
-            return res.status(200).json({ success: true, message: 'Данные успешно обновлены', claims: claimData });
+            if (claimData.length === 0) {
+                return res.status(200).json({ success: false, message: 'Все ставки имеют накопленный интерес меньше 5' });
+            }
 
+            return res.status(200).json({ success: true, message: 'Данные успешно обновлены', claims: claimData });
 
         } catch (error) {
             console.error('Ошибка на сервере:', error);
@@ -828,6 +835,7 @@ app.post('/claim/:telegramId', async (req, res) => {
         return res.status(500).json({ success: false, message: 'Неизвестная ошибка' });
     }
 });
+
 app.get('/claims/:telegramId', async (req, res) => {
     try {
         const telegramId = parseFloat(req.params.telegramId);
