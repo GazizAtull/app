@@ -785,7 +785,7 @@ app.post('/claim/:telegramId', async (req, res) => {
                 console.log('is new acc',newAccumulatedInterest)
                 await usersCollection.updateOne(
                     { telegramId: telegramId },
-                    { $set: { canDedInfo: newAccumulatedInterest } }
+                    { $inc: { canDedInfo: newAccumulatedInterest }}
                 );
 
                 await stakeCollection.updateOne(
