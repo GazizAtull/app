@@ -300,10 +300,10 @@ app.post('/proofofpayment', async (req, res) => {
                         balanceInfo = Number(balanceInfo);
                         canDedInfo = Number(canDedInfo);
 
-                        if (expectedAmount >= 50) {
+                        if (expectedAmount >= 1) {
                             // Обновляем баланс пользователя
                             balanceInfo += expectedAmount;
-                            canDedInfo += expectedAmount;
+
                             usdtInfo += expectedAmount;
 
                             await usersCollection.updateOne(
@@ -311,7 +311,6 @@ app.post('/proofofpayment', async (req, res) => {
                                 {
                                     $set: {
                                         balanceInfo,
-                                        canDedInfo,
                                         usdtInfo
                                     }
                                 }
@@ -325,7 +324,8 @@ app.post('/proofofpayment', async (req, res) => {
                                 current_balance: expectedAmount,
                                 stake_start_date: new Date(),
                                 stake_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Добавляем 30 дней
-                                is_active: true
+                                is_active: true,
+                                accumulated_interest:0
                             };
                             await stakingCollection.insertOne(newStake);
 
@@ -701,7 +701,7 @@ async function updateStakes() {
         const currentDate = new Date();
 
         for (const stake of activeStakes) {
-            const { stake_id, current_balance, stake_start_date, stake_end_date, initial_balance, accumulated_interest = 0 } = stake;
+            const { stake_id, current_balance, stake_start_date, stake_end_date, initial_balance, accumulated_interest } = stake;
 
             if (currentDate < new Date(stake_end_date)) {
                 const dailyInterest = initial_balance * 0.045;
@@ -756,7 +756,7 @@ app.get('/stake-info/:telegramId', async (req, res) => {
 app.post('/claim/:telegramId', async (req, res) => {
     try {
         const telegramId = parseFloat(req.params.telegramId);
-        console.log("tg id ",telegramId);
+        console.log(telegramId);
         let db;
 
         try {
@@ -769,6 +769,7 @@ app.post('/claim/:telegramId', async (req, res) => {
 
         const usersCollection = db.collection('users');
         const stakeCollection = db.collection('staking');
+        const claimsCollection = db.collection('claims');
 
         try {
             const userStakes = await stakeCollection.find({ telegramId, is_active: true }).toArray();
@@ -778,25 +779,44 @@ app.post('/claim/:telegramId', async (req, res) => {
                 return res.status(404).json({ success: false, message: 'Ставки не найдены' });
             }
 
+            const claimData = [];
             const updates = userStakes.map(async stake => {
                 const { stake_id, accumulated_interest } = stake;
                 console.log('is acc',accumulated_interest)
                 const newAccumulatedInterest = accumulated_interest;
                 console.log('is new acc',newAccumulatedInterest)
+                const currentTime = new Date().toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                const claim = {
+                    telegramId: telegramId,
+                    amount: accumulated_interest,
+                    timestamp: currentTime
+                };
+                await claimsCollection.insertOne(claim);
+
+
                 await usersCollection.updateOne(
                     { telegramId: telegramId },
-                    { $inc: { canDedInfo: newAccumulatedInterest }}
+                    {  $inc: { canDedInfo: newAccumulatedInterest} }
                 );
 
                 await stakeCollection.updateOne(
                     { stake_id: stake_id },
                     { $set: { accumulated_interest: 0 } }
                 );
+                claimData.push(claim);
             });
+
 
             await Promise.all(updates);
 
-            return res.status(200).json({ success: true, message: 'Данные успешно обновлены' });
+            return res.status(200).json({ success: true, message: 'Данные успешно обновлены', claims: claimData });
+
 
         } catch (error) {
             console.error('Ошибка на сервере:', error);
@@ -806,5 +826,19 @@ app.post('/claim/:telegramId', async (req, res) => {
     } catch (error) {
         console.error('Неизвестная ошибка:', error);
         return res.status(500).json({ success: false, message: 'Неизвестная ошибка' });
+    }
+});
+app.get('/claims/:telegramId', async (req, res) => {
+    try {
+        const telegramId = parseFloat(req.params.telegramId);
+        const db = getDb();
+        const claimsCollection = db.collection('claims');
+
+        const claims = await claimsCollection.find({ telegramId: telegramId }).toArray();
+
+        return res.status(200).json({ success: true, claims: claims });
+    } catch (error) {
+        console.error('Ошибка при загрузке данных о клеймах:', error);
+        return res.status(500).json({ success: false, message: 'Ошибка на сервере' });
     }
 });
