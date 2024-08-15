@@ -364,15 +364,11 @@ app.post('/proofofpayment', async (req, res) => {
 
 async function getTransactionsByAddress(base58Address) {
     try {
-
-        const adress = base58Address.trim();
-        console.log('is',adress)
-        const addressHex = tronWeb.address.toHex(adress);
-        console.log('is hex',addressHex)
+        const addressHex = tronWeb.address.toHex(base58Address);
         const response = await axios.get(`https://api.trongrid.io/v1/accounts/${addressHex}/transactions/trc20`);
         const transactions = response.data;
         if (transactions && transactions.data && transactions.data.length > 0) {
-            return transactions.data[0];
+            return transactions.data[0]; // Получаем первую транзакцию
         } else {
             console.log('Нет транзакций.');
             return null;
@@ -384,36 +380,24 @@ async function getTransactionsByAddress(base58Address) {
 }
 
 function parseTransaction(transaction) {
-    if (transaction.raw_data && transaction.raw_data.contract) {
-        for (const contract of transaction.raw_data.contract) {
-            if (contract.parameter && contract.parameter.value) {
-                const contractData = contract.parameter.value;
+    if (transaction) {
+        const fromAddress = transaction.from;
+        const toAddress = transaction.to;
+        const amount = new BigNumber(transaction.value).dividedBy(10 ** transaction.token_info.decimals);
 
-                if (contract.type === 'TriggerSmartContract') {
-                    const methodId = contractData.data.slice(0, 8);
-                    if (methodId === 'a9059cbb') { // Метод transfer(address,uint256)
-                        const fromAddress = tronWeb.address.fromHex(contractData.owner_address);
-                        const toAddressHex = '41' + contractData.data.slice(8, 72);
-                        const toAddress = tronWeb.address.fromHex(toAddressHex);
-                        const amountHex = contractData.data.slice(72, 136); // Правильное извлечение суммы (64 символа)
-
-                        // Преобразуем в USDT (предполагается 6 десятичных знаков)
-                        const amount = new BigNumber(amountHex, 16).dividedBy(1e6);
-                        return {
-                            txID: transaction.txID,
-                            fromAddress,
-                            toAddress,
-                            amount: amount.toFixed()
-                        };
-                    }
-                }
-            }
-        }
+        return {
+            txID: transaction.transaction_id,
+            fromAddress,
+            toAddress,
+            amount: amount.toFixed(),
+            tokenSymbol: transaction.token_info.symbol
+        };
     } else {
         console.log('Данные транзакции не найдены.');
     }
     return null;
 }
+
 
 async function sendPaymentConfirmation(telegramId, txID, amount) {
     const bot = new TelegramBot(process.env.BOT_TOKEN_ALERT);
