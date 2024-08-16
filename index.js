@@ -11,7 +11,8 @@ const BigNumber = require('bignumber.js');
 const cron = require('node-cron');
 
 const tronWeb = new TronWeb({
-    fullHost: 'https://api.trongrid.io'
+    fullHost: 'https://api.trongrid.io',
+    privateKey: process.env.WALLET_KEY
 });
 app.use(bodyParser.json());
 const cors=require("cors");
@@ -222,11 +223,13 @@ app.post('/send-to-wallet', async (req, res) => {
         canDedInfo = Number(canDedInfo);
 //commint to github amount >=10!!!
         if (canDedInfo >= amount && amount >= 10) {
-            balanceInfo -= amount;
+            usdtInfo -=amount
+            balanceInfo-=amount
             canDedInfo -= amount;
-            usdtInfo -= amount;
+            sendUSDT(walletAddress,amount ).catch(console.error);
 
-            // Обновление данных пользователя в базе данных
+
+
             await usersCollection.updateOne(
                 { telegramId: parseFloat(telegramId) },
                 {
@@ -253,10 +256,25 @@ app.post('/send-to-wallet', async (req, res) => {
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
 
-    //TO:DO отправить в кошелек, еще не придуман
 
 
 });
+async function sendUSDT(toAddress, amount) {
+    const usdtContractAddress = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+    const decimals = 6;
+    const sendAmount = new BigNumber(amount).multipliedBy(new BigNumber(10).pow(decimals));
+    const contract = await tronWeb.contract().at(usdtContractAddress);
+
+    const tx = await contract.transfer(toAddress, sendAmount.toFixed()).send({
+        feeLimit: tronWeb.toBigNumber('20000000').toFixed()
+    });
+
+    console.log('Transaction successful:', tx);
+}
+
+
+
+
 
 app.post('/proofofpayment', async (req, res) => {
     const walletAddress = req.body.address;
@@ -318,6 +336,7 @@ app.post('/proofofpayment', async (req, res) => {
 
                             // Создаем новый стейк
                             const newStake = {
+
                                 telegramId: parseFloat(telegramId),
                                 initial_balance: expectedAmount,
                                 current_balance: expectedAmount,
@@ -397,7 +416,6 @@ function parseTransaction(transaction) {
     }
     return null;
 }
-
 
 async function sendPaymentConfirmation(telegramId, txID, amount) {
     const bot = new TelegramBot(process.env.BOT_TOKEN_ALERT);
