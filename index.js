@@ -214,40 +214,44 @@ app.post('/send-to-wallet', async (req, res) => {
             return res.status(404).json({ message: 'Пользователь не найден.' });
         }
 
-        // Инициализация значений с дефолтными значениями
-        let { usdtInfo , balanceInfo, canDedInfo } = user;
+        let { usdtInfo, balanceInfo, canDedInfo } = user;
 
-        // Преобразуем данные в числовой формат
         usdtInfo = Number(usdtInfo);
         balanceInfo = Number(balanceInfo);
         canDedInfo = Number(canDedInfo);
-//commint to github amount >=10!!!
+
         if (canDedInfo >= amount && amount >= 10) {
-            usdtInfo -=amount
-            balanceInfo-=amount
+            usdtInfo -= amount;
+            balanceInfo -= amount;
             canDedInfo -= amount;
-            sendUSDT(walletAddress,amount ).catch(console.error);
 
-
-
-            await usersCollection.updateOne(
-                { telegramId: parseFloat(telegramId) },
-                {
-                    $set: {
-                        balanceInfo,
-                        canDedInfo,
-                        usdtInfo
+            try {
+                const tx = await sendUSDT(walletAddress, amount);  // Получаем объект транзакции
+                
+                sendConfirmation(telegramId,tx,amount)
+                await usersCollection.updateOne(
+                    { telegramId: parseFloat(telegramId) },
+                    {
+                        $set: {
+                            balanceInfo,
+                            canDedInfo,
+                            usdtInfo
+                        }
                     }
-                }
-            );
+                );
 
-            res.json({
-                success: true,
-                message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
-                balanceInfo,
-                canDedInfo,
-                usdtInfo
-            });
+                res.json({
+                    success: true,
+                    message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
+                    
+                    balanceInfo,
+                    canDedInfo,
+                    usdtInfo
+                });
+            } catch (error) {
+                console.error('Ошибка при отправке средств:', error);
+                res.status(500).json({ success: false, message: 'Не удалось отправить средства.' });
+            }
         } else {
             res.json({ success: false, message: 'Недостаточно средств для списания.' });
         }
@@ -255,24 +259,49 @@ app.post('/send-to-wallet', async (req, res) => {
         console.error('Ошибка при получении данных пользователя:', error);
         return res.status(500).json({ message: 'Произошла ошибка. Пожалуйста, попробуйте позже.' });
     }
-
-
-
 });
+
 async function sendUSDT(toAddress, amount) {
     const usdtContractAddress = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
     const decimals = 6;
     const sendAmount = new BigNumber(amount).multipliedBy(new BigNumber(10).pow(decimals));
     const contract = await tronWeb.contract().at(usdtContractAddress);
 
-    const tx = await contract.transfer(toAddress, sendAmount.toFixed()).send({
-        feeLimit: tronWeb.toBigNumber('20000000').toFixed()
-    });
+    try {
+        const tx = await contract.transfer(toAddress, sendAmount.toFixed()).send({
+            feeLimit: tronWeb.toBigNumber('20000000').toFixed()
+        });
 
-    console.log('Transaction successful:', tx);
+        console.log('Transaction successful:', tx);
+        return tx;  // Возвращаем полный объект транзакции
+    } catch (error) {
+        console.error('Ошибка при отправке транзакции:', error);
+        throw error;  // Пробрасываем ошибку вверх
+    }
 }
+async function sendConfirmation(telegramId, txID, amount) {
+    const bot = new TelegramBot(process.env.BOT_TOKEN_ALERT);
+    const message = `
+✅ Successful Payout ✅
 
+💰 Amount: ${amount} USDT
+👤 UserID:  ${telegramId}
 
+`;
+    const options = {
+        parse_mode: 'Markdown',
+        message_thread_id: 5,
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🚀 Start App 🚀', url: 'https://usdtstaking.netlify.app/' }],
+                [{ text: '🎁 Join Community! 🎁', url: 'https://t.me/usdtstaking_group/1' }],
+                [{ text: 'TXID', url: `https://tronscan.org/#/transaction/${txID}` }],
+            ]
+        }
+    };
+    bot.sendMessage(-1002220861636, message, options);
+
+}
 
 
 
@@ -423,7 +452,7 @@ async function sendPaymentConfirmation(telegramId, txID, amount) {
 🚀 New Staked amount Boost 🚀
 
 💰 Amount: ${amount} USDT
-👤 User:  ${telegramId}
+👤 UserID:  ${telegramId}
 
 `;
     const options = {
