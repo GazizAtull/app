@@ -431,8 +431,8 @@ async function sendPaymentConfirmation(telegramId, txID, amount) {
         message_thread_id: 5,
         reply_markup: {
             inline_keyboard: [
-                [{ text: '🚀 Start App 🚀', url: 'https://example.com/start-app' }],
-                [{ text: '🎁 Join Community! 🎁', url: 'https://example.com/join-community' }],
+                [{ text: '🚀 Start App 🚀', url: 'https://usdtstaking.netlify.app/' }],
+                [{ text: '🎁 Join Community! 🎁', url: 'https://t.me/usdtstaking_group/1' }],
                 [{ text: 'TXID', url: `https://tronscan.org/#/transaction/${txID}` }],
             ]
         }
@@ -540,7 +540,7 @@ const sendWelcomeMessage = (chatId) => {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: '⚡ Start App ⚡', web_app: { url: 'https://66afb02aa7f4c7c3d41e2066--luxury-narwhal-b92ac9.netlify.app/' } },
+                    { text: '⚡ Start App ⚡', web_app: { url: 'https://usdtstaking.netlify.app/' } },
                 ],
                 [
                     { text: '🎁 Join Community! 🎁', url: 'https://t.me/usdtstaking_group/1' }
