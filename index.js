@@ -221,13 +221,13 @@ app.post('/send-to-wallet', async (req, res) => {
         canDedInfo = Number(canDedInfo);
 
         if (canDedInfo >= amount && amount >= 10) {
-            usdtInfo -= amount;
-            balanceInfo -= amount;
+            //usdtInfo -= amount;
+            //balanceInfo -= amount;
             canDedInfo -= amount;
 
             try {
                 const tx = await sendUSDT(walletAddress, amount);  // Получаем объект транзакции
-                
+
                 sendConfirmation(telegramId,tx,amount)
                 await usersCollection.updateOne(
                     { telegramId: parseFloat(telegramId) },
@@ -243,7 +243,7 @@ app.post('/send-to-wallet', async (req, res) => {
                 res.json({
                     success: true,
                     message: `Средства успешно отправлены на адрес: ${walletAddress}.`,
-                    
+
                     balanceInfo,
                     canDedInfo,
                     usdtInfo
@@ -555,8 +555,6 @@ const sendWelcomeMessage = (chatId) => {
 
     Experience limitless opportunities for Stake USDT. Our infrastructure, powered by TRON blockchain, ensures optimized transactions and reduced transfer fees.
 
-    Be among the pioneers in earning with Tonix!
-
     Complete missions, invite friends, rent additional mining power to earn even more.
 
     Don't miss the opportunity to increase your income and strive for financial independence with us! 💰🚀
@@ -620,7 +618,7 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
             await userCollection.insertOne(newUser);
             user = newUser;  // Обновляем переменную user после добавления в базу данных
             console.log('New User:', newUser);
-            bot.sendMessage(chatId, 'Ваш ID был записан в базе данных.');
+            bot.sendMessage(chatId, 'Your ID has been recorded in the database.');
 
             if (refCode.startsWith('referral_')) {
                 const referrerId = refCode.split('_')[1].trim();
@@ -647,25 +645,25 @@ bot.onText(/\/start (.+)/, async (msg, match) => {
                                 { $set: { isInvited: true } }
                             );
 
-                            bot.sendMessage(chatId, 'Вы добавлены в список друзей по реферальной ссылке!');
+                            bot.sendMessage(chatId, 'You have been added to your friends list using your referral link!');
                         } else {
-                            bot.sendMessage(chatId, 'Вы уже в списке друзей по этой реферальной ссылке.');
+                            bot.sendMessage(chatId, 'You are already on your friends list using this referral link.');
                         }
                     } else {
-                        bot.sendMessage(chatId, 'Реферальная ссылка не найдена.');
+                        bot.sendMessage(chatId, 'Referral link not found.');
                     }
                 } else {
-                    bot.sendMessage(chatId, 'Вы уже были приглашены.');
+                    bot.sendMessage(chatId, 'You have already been invited.');
                 }
             } else {
-                bot.sendMessage(chatId, 'Добро пожаловать!');
+                bot.sendMessage(chatId, 'Welcome!');
             }
         } catch (error) {
             console.error('Error handling user data:', error);
-            return bot.sendMessage(chatId, 'Ошибка при создании нового пользователя.');
+            return bot.sendMessage(chatId, 'Error creating a new user.');
         }
     } else {
-        bot.sendMessage(chatId, 'Вы уже записаны в базе данных.');
+        bot.sendMessage(chatId, 'You are already recorded in the database.');
     }
 
     console.log(user.isInvited);
